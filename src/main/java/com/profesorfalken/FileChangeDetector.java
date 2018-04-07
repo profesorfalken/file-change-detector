@@ -1,47 +1,45 @@
 package com.profesorfalken;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-
-import static java.nio.file.StandardWatchEventKinds.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class FileChangeDetector {
-    public static final String BASE_DIRECTORY = "j:\\dev";
-
     private final WatchService watcher = FileSystems.getDefault().newWatchService();;
 
     Map<WatchKey, Path> watchers = new HashMap<>();
 
+    Future registerWatcherService = null;
+
     public FileChangeDetector() throws IOException {
     }
 
-    public void registerAllDirectories() throws IOException {
-        Files.list(new File(BASE_DIRECTORY).toPath())
-                .filter(Files::isDirectory)
-                .forEach(path -> {
-                    System.out.println("Register and walk " + path);
-                    registerDirectory(path);
-                });
+    public void watch(Path baseDirectory) throws IOException {
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        this.registerWatcherService = executorService.submit(new RegisterWatcherService(baseDirectory, this.watcher, this.watchers));
+        processEvents();
     }
 
-    private void registerDirectory(Path rootPath) {
-        try {
-        Files.walkFileTree(rootPath, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                WatchKey key = dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
-                System.out.println("Register " + dir);
-                watchers.put(key, dir);
-                return FileVisitResult.CONTINUE;
+    private void processEvents() {
+        System.out.println("Start processing events");
+        boolean run = true;
+        while(run) {
+            if (this.registerWatcherService.isDone()) {
+                System.out.println("Finished");
+                run = false;
             }
-        }); } catch (IOException ioe) {
-            ioe.printStackTrace();
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 
