@@ -7,6 +7,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -16,31 +17,21 @@ public class FileChangeDetector {
 
     Map<WatchKey, Path> watchers = new HashMap<>();
 
-    Future registerWatcherService = null;
+    EventProcessorService eventProcessor = null;
+    Future eventProcessorService = null;
 
     public FileChangeDetector() throws IOException {
     }
 
-    public void watch(Path baseDirectory) throws IOException {
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        this.registerWatcherService = executorService.submit(new RegisterWatcherService(baseDirectory, this.watcher, this.watchers));
-        processEvents();
+    public boolean isReadyToPollEvents () {
+        return eventProcessor.isReady();
     }
 
-    private void processEvents() {
-        System.out.println("Start processing events");
-        boolean run = true;
-        while(run) {
-            if (this.registerWatcherService.isDone()) {
-                System.out.println("Finished");
-                run = false;
-            }
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+    public void watch(Path baseDirectory) throws IOException, ExecutionException, InterruptedException {
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future registerWatcherService = executorService.submit(new RegisterWatcherService(baseDirectory, this.watcher, this.watchers));
+        this.eventProcessor = new EventProcessorService(registerWatcherService, this.watcher, this.watchers);
+        this.eventProcessorService = executorService.submit(this.eventProcessor);
     }
 
 //https://howtodoinjava.com/java-8/java-8-watchservice-api-tutorial/
