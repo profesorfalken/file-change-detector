@@ -38,7 +38,7 @@ class RegisterWatcherService implements Runnable {
         }
     }
 
-    private void registerDirectory(Path rootPath) throws IOException {
+    void registerDirectory(Path rootPath) throws IOException {
         Files.walkFileTree(rootPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {

@@ -1,6 +1,7 @@
 package com.profesorfalken;
 
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.Map;
@@ -27,16 +28,35 @@ class EventProcessorService implements Runnable  {
     public void run() {
         System.out.println("Start processing events");
         boolean run = true;
-        while(run) {
-            if (this.registerWatcherService.isDone()) {
-                System.out.println("Finished");
-                this.ready = true;
-                run = false;
-            }
+        while (!registerWatcherService.isDone()) {
+            //Wait
             try {
                 Thread.sleep(10);
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            }
+        }
+        System.out.println("Finished registering");
+
+        while(run) {
+            // wait for key to be signalled
+            WatchKey watchKey;
+            try {
+                watchKey = watcher.take();
+                System.out.println("Something detected!");
+            } catch (InterruptedException x) {
+                return;
+            }
+
+            for (WatchEvent<?> event : watchKey.pollEvents()) {
+                System.out.format("%s: %s\n", event.kind().name(), event.context());
+            }
+
+
+
+            boolean canReset = watchKey.reset();
+            if (!canReset) {
+                this.watchers.remove(watchKey);
             }
         }
     }
