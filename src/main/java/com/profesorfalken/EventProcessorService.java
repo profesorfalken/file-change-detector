@@ -1,16 +1,19 @@
 package com.profesorfalken;
 
-import java.nio.file.Path;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+
 class EventProcessorService implements Runnable  {
-    private Future registerWatcherService = null;
-    private WatchService watcher = null;
-    private Map<WatchKey, Path> watchers = null;
+    private final  Path baseDirectory;
+    private final  WatchService watchService;
+    private final  Map<WatchKey, Path> watchers;
 
     private boolean ready = false;
 
@@ -18,31 +21,23 @@ class EventProcessorService implements Runnable  {
         return ready;
     }
 
-    public EventProcessorService(Future registerWatcherService, WatchService watcher, Map<WatchKey, Path> watchers) {
-        this.registerWatcherService = registerWatcherService;
-        this.watcher = watcher;
+    public EventProcessorService(Path baseDirectory, WatchService watchService, Map<WatchKey, Path> watchers) {
+        this.baseDirectory = baseDirectory;
+        this.watchService = watchService;
         this.watchers = watchers;
     }
 
     @Override
     public void run() {
         System.out.println("Start processing events");
-        boolean run = true;
-        while (!registerWatcherService.isDone()) {
-            //Wait
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+        registerDirectories();
         System.out.println("Finished registering");
 
-        while(run) {
+        while(true) {
             // wait for key to be signalled
             WatchKey watchKey;
             try {
-                watchKey = watcher.take();
+                watchKey = this.watchService.take();
                 System.out.println("Something detected!");
             } catch (InterruptedException x) {
                 return;
@@ -59,5 +54,32 @@ class EventProcessorService implements Runnable  {
                 this.watchers.remove(watchKey);
             }
         }
+    }
+
+    private void registerDirectories() {
+        try {
+            Files.list(this.baseDirectory)
+                    .filter(Files::isDirectory)
+                    .forEach((Path path) -> {
+                        System.out.println("Register and walk " + path);
+                        try {
+                            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                                @Override
+                                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                                    WatchKey key = dir.register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+                                    System.out.println("Register " + dir);
+                                    watchers.put(key, dir);
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
+                        } catch (IOException ioe) {
+                            ioe.printStackTrace();
+                        }
+                    });
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+
+
     }
 }

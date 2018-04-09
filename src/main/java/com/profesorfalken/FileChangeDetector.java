@@ -29,8 +29,7 @@ public class FileChangeDetector {
 
     public void watch(Path baseDirectory) throws IOException, ExecutionException, InterruptedException {
         ExecutorService executorService = Executors.newSingleThreadExecutor();
-        Future registerWatcherService = executorService.submit(new RegisterWatcherService(baseDirectory, this.watcher, this.watchers));
-        this.eventProcessor = new EventProcessorService(registerWatcherService, this.watcher, this.watchers);
+        this.eventProcessor = new EventProcessorService(baseDirectory, this.watcher, this.watchers);
         this.eventProcessorService = executorService.submit(this.eventProcessor);
     }
 
